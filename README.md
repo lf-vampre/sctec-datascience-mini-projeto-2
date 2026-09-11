@@ -130,17 +130,23 @@ Os dados utilizados neste projeto têm como origem o **Banco de Preços em Saúd
 * **Formato Original:** Arquivos em formato `.csv`.
 * **Armazenamento Inicial:** Diretório local `dados/bronze/` mantendo as estruturas originais (*raw data*).
 
+Após auditoria estrutural na primeira fase do ETL, foi confirmada a consistência de 25 colunas idênticas em toda série histórica, totalizando 342.716 registros brutos.
+
 <br>
 
 ---
 
 ## 4. Procedimentos utilizados para baixar e concatenar as bases anuais
 
-> 
+> Download dos 7 arquivos em formato `.csv` (2020 a 2026), após submetidos a uma auditoria estrutural e preparados para consolidaçõa em um único arquivo.
 
 <br>
 
+* **Obtenção e Armazenamento:** Os conjuntos de dados públicos foram baixados do Portal Brasileiro de Dados Abertos do Ministério da Saúde e salvos na camada Bronze (dados/bronze/) preservando o formato original (raw data).
 
+* **Extração:** Utilizou-se um dicionário de dados em Python via pandas para estruturar a leitura iterativa dos 7 arquivos anuais.
+
+* **Auditoria de Integridade:** Realizou-se a validação comparativa de colunas, confirmando a consistência de 25 campos idênticos em toda a série histórica, totalizando 342.716 registros brutos prontos para a unificação.
 
 <br>
 
@@ -232,11 +238,56 @@ Os dados utilizados neste projeto têm como origem o **Banco de Preços em Saúd
 
 ## 12. Instruções para reprodução do projeto
 
-> 
+> Guia passo a passo para configurar o ambiente de desenvolvimento, estruturar os diretórios e executar o pipeline de dados a partir dos arquivos brutos.
 
 <br>
 
+1. **Pré-requisitos:**
+   * _Python:_ Versão 3.12.3 ou superior instalado.
+   * _Ambiente virtual .venv:_ Criação do ambinte virtual e instalação das dependências.
 
+<br>
+
+2. **Clone o repositório e acesse a pasta:**
+
+```bash
+git clone https://github.com/lf-vampre/sctec-datascience-mini-projeto-2
+cd sctec-datascience-mini-projeto-2
+```
+
+<br>
+
+3. **Crie e ative o ambiente virtual (venv):**
+
+```bash
+python3 -m venv .venv # ou então: python -m venv .venv
+```
+
+* Ativação (Linux/WSL/MacOS):
+
+```bash
+source .venv/bin/activate
+```
+
+* Ativação (Windows - PowerShell):
+
+```bash
+.\.venv\Scripts\Activate.ps1
+```
+
+<br>
+
+4. **Instale as dependências:**
+
+```bash
+pip install -r requirements.txt
+```
+
+<br>
+
+5. **Execução do Pipeline:**
+
+* Abra o arquivo `projeto_bps.ipynb` no vscode ou alguma IDE que reconheça `.ipynb`, selecione o kernel do python do ambiente .venv e rode todas as células ou uma a uma para acompanhar o pipeline de dados.
 
 <br>
 
