@@ -77,7 +77,7 @@ Utilizando o banco de dados público do Ministério da Saúde que reúne informa
 
 ## 1. Objetivo do projeto
 
-> Construir um pipeline de dados completo (ETL, Análise Exploratória e Modelagem em Arquitetura Medalhão) e um dashboard analítico interativo para monitorar, analisar e dar transparência às compras públicas de medicamentos e dispositivos médicos registradas no Banco de Preços em Saúde (BPS) entre 2020 e 2026.
+> Construir um pipeline de dados completo (ETL, Análise Exploratória e Modelagem em Arquitetura Medalhão - Bronze, Prata e Ouro) e um dashboard analítico interativo para monitorar, analisar e dar transparência às compras públicas de medicamentos e dispositivos médicos registradas no Banco de Preços em Saúde (BPS) entre 2020 e 2026.
 
 <br>
 
@@ -144,21 +144,40 @@ Após auditoria estrutural na primeira fase do ETL, foi confirmada a consistênc
 
 * **Obtenção e Armazenamento:** Os conjuntos de dados públicos foram baixados do Portal Brasileiro de Dados Abertos do Ministério da Saúde e salvos na camada Bronze (dados/bronze/) preservando o formato original (raw data).
 
-* **Extração:** Utilizou-se um dicionário de dados em Python via pandas para estruturar a leitura iterativa dos 7 arquivos anuais.
+* **Extração:** Utilizou-se um dicionário de dados em Python via `pandas` para estruturar a leitura sequencial dos 7 arquivos anuais, garantindo o parseamento correto do encoding (`utf-8`) e do separador de campos.
 
-* **Auditoria de Integridade:** Realizou-se a validação comparativa de colunas, confirmando a consistência de 25 campos idênticos em toda a série histórica, totalizando 342.716 registros brutos prontos para a unificação.
+* **Auditoria de Integridade:** Realizou-se a validação comparativa de colunas, confirmando a consistência de 25 campos idênticos em toda a série histórica, totalizando **342.716 registros brutos** prontos para a unificação.
+
+* **Consolidação em DataFrame Único:** Executou-se a unificação vertical das tabelas via `pd.concat(dfs.values(), ignore_index=True)`, redefinindo a indexação e criando a base consolidada inicial que serve de insumo para a Camada Prata.
 
 <br>
 
 ---
 
-## 5. Tratamentos e transformações realizados nos dados
+## 5. Tratamentos e transformações realizados nos dados (Camada Prata)
 
-> 
+> Processamento completo da base consolidada (342.697 registros após deduplicação), incluindo padronização textual, imputação determinística de nulos, validações de domínio e otimização de memória.
 
 <br>
 
+As seguintes ações foram aplicadas:
 
+1. **Deduplicação e Tratamento de Nulos:**
+   * **Deduplicação:** Remoção de 19 registros totalmente idênticos.
+   * **Imputação Determinística por Mapeamento Histórico:**
+     * `nome_instituicao`: Preenchimento de nulos utilizando o histórico de registros do mesmo `cnpj_instituicao`.
+     * `anvisa` e `generico`: Preenchimento de nulos via mapeamento pelo código `codigo_br` (CATMAT).
+   * **Padronização de Nulos Residuais:** Atribuição do rótulo `'NÃO INF.'` para colunas categóricas sem histórico e `0` para o código ANVISA ausente. A coluna `capacidade` foi mantida como `NaN` para preservar a integridade estatística.
+
+2. **Padronização Textual e Normalização de Datas:**
+   * **Padronização de Strings:** Aplicação de caixa alta (`UPPER` - padrão original do banco) e remoção de espaços nas extremidades (`TRIM`) em colunas de texto, preservando a integridade dos nulos.
+   * **Formatação Temporal:** Conversão dos campos `compra` e `insercao` para o padrão `datetime64` utilizando o formato explícito brasileiro (`%d/%m/%Y` - padrão dos dados originais).
+   * **Correção de Inconsistências de Data:** Aplicação de _*fallback*_ para preencher 2.128 `insercao` ausentes com a data de compra e ajuste de 12 registros com data de `insercao` registrada como anterior à `compra`.
+
+3. **Downcasting e Otimização de Memória RAM:**
+   * **Inteiros:** Redução de precisão para tipos compactos (`ano_compra` para `int16`, `codigo_br` e `qtd_itens_comprados` para `int32`).
+   * **Categorização (`category`):** Conversão de 9 colunas string categóricas de baixa/média cardinalidade (`esfera`, `uf`, `generico`, `modalidade_compra`, `tipo_compra`, `unidade_medida`, `unidade_fornecimento`, `unidade_fornecimento_capacidade`, `municipio_instituicao`).
+   * **Resultado de Performance:** Redução do uso de memória RAM de **432,47 MB para 248,00 MB** (uma otimização de **42,7%** no consumo).
 
 <br>
 
