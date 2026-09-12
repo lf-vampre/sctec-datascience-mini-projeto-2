@@ -172,7 +172,7 @@ As seguintes ações foram aplicadas:
 2. **Padronização Textual e Normalização de Datas:**
    * **Padronização de Strings:** Aplicação de caixa alta (`UPPER` - padrão original do banco) e remoção de espaços nas extremidades (`TRIM`) em colunas de texto, preservando a integridade dos nulos.
    * **Formatação Temporal:** Conversão dos campos `compra` e `insercao` para o padrão `datetime64` utilizando o formato explícito brasileiro (`%d/%m/%Y` - padrão dos dados originais).
-   * **Correção de Inconsistências de Data:** Aplicação de _*fallback*_ para preencher 2.128 `insercao` ausentes com a data de compra e ajuste de 12 registros com data de `insercao` registrada como anterior à `compra`.
+   * **Correção de Inconsistências de Data:** Aplicação de ***fallback*** para preencher 2.128 `insercao` ausentes com a data de compra e ajuste de 12 registros com data de `insercao` registrada como anterior à `compra`.
 
 3. **Downcasting e Otimização de Memória RAM:**
    * **Inteiros:** Redução de precisão para tipos compactos (`ano_compra` para `int16`, `codigo_br` e `qtd_itens_comprados` para `int32`).
@@ -195,13 +195,56 @@ As seguintes ações foram aplicadas:
 
 ---
 
-## 7. Definição dos KPIs e das métricas
+## 7. Definição dos KPIs, métricas e Pilares Analíticos
 
-> 
+> Para a definição dos indicadores e KPIs, foi adotada a abordagem ***Business-Driven Data Modeling*** (Modelagem de Dados Orientada a Negócios). Essa abordagem parte da premissa de que os indicadores devem ser derivados diretamente dos objetivos estratégicos e dos processos de negócio — e não de uma visão puramente técnica dos dados disponíveis.
 
 <br>
 
+### Para estruturar as Perguntas de Negócio e KPIs, os dados foram analisados sob 5 grandes pilares analíticos/estratégicos:
 
+1. **Panorama Financeiro e Temporal (Visão Geral Executiva)**
+   * **Objetivo:** Evolução dos valores ao longo do tempo, volume de registros e apoio ao planejamento estratégico de gastos.
+   * **KPIs Principais:**
+     * Valor Total Registrado (R$): $\text{Soma}(preco\_total)$
+     * Quantidade Total de Itens: $\text{Soma}(qtd\_itens\_comprados)$
+     * Número de Registros de Compra: $\text{Contagem Simples}(id / linhas)$
+
+2. **Análise Geográfica e de Instituições (Compradores)**
+   * **Objetivo:** Identificar os estados, municípios e instituições compradoras de maior relevância e volume financeiro. Top UFs e Municípios com maior volume financeiro de compras. Top 10 Instituições com maior gasto acumulado e respectivo volume de itens comprados.
+   * **KPIs Principais:**
+     * Instituições Compradoras Únicas: $\text{Contagem Distinta}(cnpj\_instituicao)$
+     * Total de UFs e Municípios Atendidos: $\text{Contagem Distinta}(uf)$ e $\text{Contagem Distinta}(municipio\_instituicao)$
+
+3. **Produtos, Insumos e Oportunidades de Investigação de Preço**
+   * **Objetivo:** Medicamentos e correlatos mais adquiridos, análise da mediana/dispersão de preços e identificação de oportunidades de investigação sobre diferenças relevantes de preços. Top produtos por valor total e por quantidade total.
+   * **KPIs Principais:**
+     * Medicamentos / Correlatos Distintos: $\text{Contagem Distinta}(codigo\_br)$
+     * Preço Unitário Médio Ponderado: $\frac{\text{Soma}(preco\_total)}{\text{Soma}(qtd\_itens\_comprados)}$ (Exibido com alerta/contexto de unidade de fornecimento).
+     * Preço Unitário Mediano: $\text{Mediana}(preco\_unitario)$ (Métrica robusta contra outliers para comparação justa).
+
+4. **Fornecedores e Fabricantes (Mercado e Concorrência)**
+   * **Objetivo:** Avaliar a participação de mercado, concentração de fornecedores/fabricantes e apoiar a negociação pública.
+   * **KPIs Principais:**
+     * Fornecedores Únicos: $\text{Contagem Distinta}(cnpj\_fornecedor)$
+     * Fabricantes Únicos: $\text{Contagem Distinta}(cnpj\_fabricante)$
+
+5. **Eficiência de Compras, Modalidades e Recomendações**
+   * **Objetivo:** Identificar as modalidades de compra mais utilizadas, comparar compras administrativas vs. judiciais e consolidar recomendações baseadas em dados com suas limitações. Verificar a distribuição do valor gasto por modalidade de compra e tipo ao longo dos anos.
+   * **KPIs Principais:**
+     * % Gasto em Pregão / Licitação vs. Dispensa / Compra Direta: $\frac{\text{Soma}(preco\_total_{\text{modalidade}})}{\text{Soma}(preco\_total_{\text{geral}})}$
+     * Compra Administrativa vs. Judicial: $\text{Soma}(preco\_total)$ filtrado por `tipo_compra`.
+
+
+### Diretrizes de Agregação Matemática e Regras Negociais Definidas:
+
+1. **Soma:** Exclusiva para `preco_total` e `qtd_itens_comprados`.
+
+2. **Preço Unitário:** Jamais somar. Utilizar *Médias Ponderadas* ($\sum \text{Preço Total} / \sum \text{Quantidade}$) para visões agregadas ou *Mediana* para identificar desvios/outliers em produtos específicos.
+
+3. **Contagem Distinta:** Para CNPJs (Instituição, Fornecedor, Fabricante), CATMAT (codigo_br), UFs e Municípios.
+
+4. **Filtros Globais Interativos:** Todos os 5 painéis contarão com slicers para Ano, UF, Modalidade de Compra, Categoria (MEDICAMENTO / CORRELATO) e Busca por CATMAT/Produto.
 
 <br>
 
@@ -262,8 +305,8 @@ As seguintes ações foram aplicadas:
 <br>
 
 1. **Pré-requisitos:**
-   * _Python:_ Versão 3.12.3 ou superior instalado.
-   * _Ambiente virtual .venv:_ Criação do ambinte virtual e instalação das dependências.
+   * *Python:* Versão 3.12.3 ou superior instalado.
+   * *Ambiente virtual .venv:* Criação do ambinte virtual e instalação das dependências.
 
 <br>
 
