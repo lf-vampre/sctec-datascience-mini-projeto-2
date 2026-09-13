@@ -24,7 +24,7 @@ Utilizando o banco de dados público do Ministério da Saúde que reúne informa
 
 > O desafio consiste em desenvolver um dashboard analítico para acompanhar as compras de medicamentos e dispositivos médicos registradas no Banco de Preços em Saúde (BPS) entre os anos de 2020 e 2026. O **objetivo** é praticar o pipeline de dados completo desde a aquisição dos dados até a disposição em um dashboard de BI. 
 
-> Para tal proposta os dados foram baixados do site do Ministério da Saúde em arquivos distintos de cada ano (2020 a 2026), preparados e concatenados em um único conjunto de dados histórico e realizadas as etapas de ETL, AED e visualização no Google Data Studio (antigo Looker). 
+> Para tal proposta os dados foram baixados do site do Ministério da Saúde em arquivos distintos de cada ano (2020 a 2026), preparados e concatenados em um único conjunto de dados histórico e realizadas as etapas de ETL, AED e visualização no Microsoft Power BI. 
 
 <br>
 
@@ -38,7 +38,7 @@ Utilizando o banco de dados público do Ministério da Saúde que reúne informa
 
 1. - [ ] Uma base consolidada com os arquivos do BPS referentes aos anos de 2020 a 2026
 
-2. - [ ] Um dashboard desenvolvido preferencialmente no Data Studio - Looker Studio.
+2. - [ ] Um dashboard desenvolvido Microsoft Power BI.
 
 3. - [ ] Um arquivo `README.md` com a documentação do projeto.
 
@@ -177,19 +177,134 @@ As seguintes ações foram aplicadas:
 3. **Downcasting e Otimização de Memória RAM:**
    * **Inteiros:** Redução de precisão para tipos compactos (`ano_compra` para `int16`, `codigo_br` e `qtd_itens_comprados` para `int32`).
    * **Categorização (`category`):** Conversão de 9 colunas string categóricas de baixa/média cardinalidade (`esfera`, `uf`, `generico`, `modalidade_compra`, `tipo_compra`, `unidade_medida`, `unidade_fornecimento`, `unidade_fornecimento_capacidade`, `municipio_instituicao`).
-   * **Resultado de Performance:** Redução do uso de memória RAM de **432,47 MB para 248,00 MB** (uma otimização de **42,7%** no consumo).
+   * **Resultado de Performance:** Redução do uso de memória RAM de **172 MB para 123.55 MB** (uma otimização de **28.2%** no consumo).
 
 <br>
 
 ---
 
-## 6. Descrição das principais colunas utilizadas
+## 6. Descrição das principais colunas utilizadas e carga no Google BigQuery
 
-> 
+> Definição da arquitetura da Camada Ouro (Gold), detalhamento das transformações e engenharia de recursos (*feature engineering*), dicionário de dados do Star Schema e estratégia de disponibilização no Data Warehouse (Google BigQuery).
 
 <br>
 
+### 6.1. Engenharia de Features e Descarte de Colunas (Pruning)
 
+Para otimizar o consumo de memória RAM, acelerar o processamento analítico e preparar os dados para o consumo nas ferramentas de BI (Power BI/Looker Studio), a Camada Ouro passou por duas ações principais:
+
+1. **Descarte de Colunas Inutilizadas (Pruning):**
+   * `insercao`: Descartada por tratar-se de data de controle administrativo interno; as análises temporais negociais baseiam-se 100% na data efetiva de `compra`.
+   * `capacidade`: Descartada devido ao alto volume de nulos (~63,6%) e redundância em relação às especificações textuais da `unidade_fornecimento` e `descricao_catmat`.
+   * `unidade_medida`: Descartada por apresentar baixa completude e redundância em relação à `unidade_fornecimento`.
+   * `ano_compra`: Descartada após auditoria estrutural confirmar 100% de equivalência com o ano extraído da coluna temporal nativa `compra`.
+
+2. **Engenharia de Recursos (*Feature Engineering*):**
+   * **Atributos Temporais Enxutos:** Extração dos campos inteiros `nr_ano` (`int16`), `nr_mes` (`int8`), `nr_trimestre` (`int8`) e `nr_dia_semana` (`int8`) a partir do campo `compra`.
+   * **Categorização Negocial (`categoria_insumo`):** Criação de flag categórico classificando as aquisições em `'MEDICAMENTO'` (quando `generico != 'NÃO INF.'` ou `anvisa > 0`) e `'CORRELATO'` (para dispositivos, materiais e equipamentos médico-hospitalares).
+
+
+### 6.2. Arquitetura da Camada Ouro: Abordagens Implementadas
+
+A Camada Ouro foi estruturada em duas abordagens complementares armazenadas no diretório `dados/ouro/`:
+
+#### A. Abordagem 1: Tabela Única Denormalizada (`df_ouro`)
+
+Como pré-requisito do projeto foi solicitado realizar a preparação e a concatenação das bases em um único conjunto de dados histórico chamado BPS_20_26_NomeDoAluno.csv. Portanto, foi criada uma tabela *Flat* consolidada com 21 colunas estratégicas e as 5 novas colunas calculadas, totalizando 26 colunas. É ideal para explorações rápidas, rotinas ad-hoc de Data Science e cargas em ferramentas que performam melhor com tabelas únicas de média cardinalidade.
+
+#### B. Abordagem 2: Modelagem Dimensional (*Star Schema*)
+
+Apesar do volume total de dados não serem expressivos (342.697 linhas), para simular um ambiente cloud profissional de alta escala, foi criada uma estrutura relacional otimizada (Star Schema) para Data Warehouse e BI, eliminando redundâncias textuais na tabela de fatos e garantindo integridade referencial por meio de chaves substitutas (*Surrogate Keys - SKs*).
+
+Antes da criação das tabelas dim_instituicao, dim_fornecedor e dim_fabricante forma feitas auditorias de duplicidade e econtrado 9 Instituições (mesmo CNPJ) com variações de cadastro. Na criação da dim_instituicao foi utilizado o cadastro mais recente destas instituições.
+
+```
+fato_compras
+│
+├─── sk_calendario ──── N:1 ─── dim_calendario
+│
+├─── sk_produto ─────── N:1 ─── dim_produto
+│
+├─── sk_instituicao ─── N:1 ─── dim_instituicao
+│
+├─── sk_fabricante ─── N:1 ─── dim_fabricante
+│
+└─── sk_fornecedor ──── N:1 ─── dim_fornecedor
+```
+
+### 6.3. Dicionário de Dados do Star Schema
+
+#### 1. Tabela Fato: `fato_compras` (342.697 registros)
+Armazena as métricas quantitativas/financeiras e as chaves estrangeiras (FKs).
+* `sk_calendario` (FK): Chave de data no formato `YYYYMMDD` (`int32`).
+* `sk_instituicao` (FK): Chave da instituição compradora (`int32`).
+* `sk_produto` (FK): Chave do produto/insumo (`int32`).
+* `sk_fornecedor` (FK): Chave do fornecedor (`int32`).
+* `sk_fabricante` (FK): Chave do fabriacnte (`int32`).
+* `modalidade_compra`: Modalidade da aquisição (ex: Pregão, Dispensa) (`category`).
+* `tipo_compra`: Categoria da compra (ex: `ADMINISTRATIVA`, `JUDICIAL`) (`category`).
+* `qtd_itens_comprados`: Quantidade de unidades adquiridas (`int32`).
+* `preco_unitario`: Preço pago por unidade (`float64`).
+* `preco_total`: Valor total da transação (`float64`).
+
+#### 2. Dimensão: `dim_calendario` (2.256 registros)
+Mapeia a série temporal completa contínua (2020 a 2026).
+* `sk_calendario` (PK): Código numérico `YYYYMMDD` (`int32`).
+* `dt_completa`: Data real da transação (`datetime64`).
+* `nr_ano`, `nr_mes`, `nr_trimestre`, `nr_dia_semana`: Atributos numéricos de tempo.
+* `nm_mes`: Nome do mês em português (`Janeiro`, `Fevereiro`...) (`category`).
+* `nm_dia_semana`: Nome do dia em português (`Segunda-feira`...) (`category`).
+* `ds_ano_mes`, `ds_periodo`: Textos formatados (`YYYYMM` e `MM/YYYY`).
+
+#### 3. Dimensão: `dim_instituicao` (831 registros)
+Cadastro de órgãos e entidades compradoras da saúde pública.
+* `sk_instituicao` (PK): Identificador único (`int32`).
+* `cnpj_instituicao`: CNPJ da instituição.
+* `nome_instituicao`, `esfera`, `municipio_instituicao`, `uf`: Atributos geográficos e administrativos.
+
+#### 4. Dimensão: `dim_produto` (27.559 registros)
+Catálogo unificado de medicamentos e materiais de saúde (CATMAT).
+* `sk_produto` (PK): Identificador único (`int32`).
+* `codigo_br`: Código do item no CATMAT.
+* `descricao_catmat`, `unidade_fornecimento`, `unidade_fornecimento_capacidade`: Especificações do item.
+* `generico`, `anvisa`: Registros regulatórios.
+* `categoria_insumo`: Classificação (`MEDICAMENTO` / `CORRELATO`).
+
+#### 5. Dimensão: `dim_fornecedor` (3.502 registros)
+Mapeamento de empresas fornecedoras.
+* `sk_fornecedor` (PK): Identificador único (`int32`).
+* `cnpj_fornecedor`: CNPJ do distribuidor/vendedor.
+* `fornecedor`: Nome do distribuidor/vendedor.
+
+#### 6. Dimensão: `dim_fabricante` (2.290 registros)
+Mapeamento de empresas fabricantes.
+* `sk_fabricante` (PK): Identificador único (`int32`).
+* `cnpj_fabricante`: CNPJ da indústria fabricante.
+* `fabricante`: Nome da indústria fabricante.
+
+
+### 6.4. Salvamento Multi-Formato e Ingestão Cloud no Google BigQuery
+
+#### A. Desempenho do Formato Apache Parquet:
+Os datasets da Camada Ouro (Tabela Única) foram salvos (persistidos) nos formatos `.csv`, `.csv.gz` e `.parquet`. A adoção do **Parquet** proporcionou uma **redução de ~88,3% no tamanho do armazenamento** em relação ao CSV tradicional:
+
+* **CSV Tradicional:** ~135,2 MB
+* **CSV Compactado (.gz):** ~19 MB
+* **Apache Parquet:** **15,7 MB** (Preservação de schemas, tipos de dados e alta performance de leitura).
+
+Na arquitetura *Star Schema* a redução foi ainda maior. Somando os arquivos da tabela fato + dimensões, ficaram com os seguintes tamanhos:
+
+* **CSV Tradicional:** ~27,5 MB
+* **CSV Compactado (.gz):** ~5,7 MB
+* **Apache Parquet:** 6,17 MB 
+
+
+#### B. Carga no Data Warehouse (Google BigQuery):
+Para simular um ambiente analítico em nuvem de nível corporativo e habilitar conexões de alta velocidade com ferramentas de BI, o modelo **Star Schema** foi ingerido no **Google BigQuery**:
+* **Dataset no GCP:** `sctec-project.mini_projeto_2_bps_gold`
+* **Tabelas Carregadas:** `fato_compras`, `dim_calendario`, `dim_instituicao`, `dim_produto`, `dim_fornecedor`, `dim_fabricante`.
+* **Modo de Carga:** Ingestão direta dos arquivos `.parquet` com detecção automática de schema.
+* **Integração BI:** O modelo está pronto para consumo via conexão nativa (Import Mode ou DirectQuery) no **Power BI** e/ou **Looker Studio**.
 
 <br>
 
@@ -206,41 +321,41 @@ As seguintes ações foram aplicadas:
 1. **Panorama Financeiro e Temporal (Visão Geral Executiva)**
    * **Objetivo:** Evolução dos valores ao longo do tempo, volume de registros e apoio ao planejamento estratégico de gastos.
    * **KPIs Principais:**
-     * Valor Total Registrado (R$): $\text{Soma}(\text{preco_total})$
-     * Quantidade Total de Itens: $\text{Soma}(\text{qtd_itens_comprados})$
-     * Número de Registros de Compra: $\text{Contagem Simples}(id ou  linhas)$
+     * Valor Total Registrado (R$): $`\text{Soma}(\text{preco\_total})`$
+     * Quantidade Total de Itens: $`\text{Soma}(\text{qtd\_itens\_comprados})`$
+     * Número de Registros de Compra: $`\text{Contagem Simples}(id ou  linhas)`$
 
 2. **Análise Geográfica e de Instituições (Compradores)**
    * **Objetivo:** Identificar os estados, municípios e instituições compradoras de maior relevância e volume financeiro. Top UFs e Municípios com maior volume financeiro de compras. Top 10 Instituições com maior gasto acumulado e respectivo volume de itens comprados.
    * **KPIs Principais:**
-     * Instituições Compradoras Únicas: $\text{Contagem Distinta}(\text{cnpj_instituicao})$
-     * Total de UFs e Municípios Atendidos: $\text{Contagem Distinta}(uf)$ e $\text{Contagem Distinta}(\text{municipio_instituicao})$
+     * Instituições Compradoras Únicas: $`\text{Contagem Distinta}(\text{cnpj\_instituicao})`$
+     * Total de UFs e Municípios Atendidos: $`\text{Contagem Distinta}(uf)`$ e $`\text{Contagem Distinta}(\text{municipio\_instituicao})`$
 
 3. **Produtos, Insumos e Oportunidades de Investigação de Preço**
    * **Objetivo:** Medicamentos e correlatos mais adquiridos, análise da mediana/dispersão de preços e identificação de oportunidades de investigação sobre diferenças relevantes de preços. Top produtos por valor total e por quantidade total.
    * **KPIs Principais:**
-     * Medicamentos / Correlatos Distintos: $\text{Contagem Distinta}(\text{codigo_br})$
-     * Preço Unitário Médio Ponderado: $\frac{\text{Soma}(\text{preco_total})}{\text{Soma}(\text{qtd_itens_comprados})}$ (Exibido com alerta/contexto de unidade de fornecimento).
-     * Preço Unitário Mediano: $\text{Mediana}(\text{preco_unitario})$ (Métrica robusta contra outliers para comparação justa).
+     * Medicamentos / Correlatos Distintos: $`\text{Contagem Distinta}(\text{codigo\_br})`$
+     * Preço Unitário Médio Ponderado: $`\frac{\text{Soma}(\text{preco\_total})}{\text{Soma}(\text{qtd\_itens\_comprados})}`$ (Exibido com alerta/contexto de unidade de fornecimento).
+     * Preço Unitário Mediano: $`\text{Mediana}(\text{preco\_unitario})`$ (Métrica robusta contra outliers para comparação justa).
 
 4. **Fornecedores e Fabricantes (Mercado e Concorrência)**
    * **Objetivo:** Avaliar a participação de mercado, concentração de fornecedores/fabricantes e apoiar a negociação pública.
    * **KPIs Principais:**
-     * Fornecedores Únicos: $\text{Contagem Distinta}(\text{cnpj_fornecedor})$
-     * Fabricantes Únicos: $\text{Contagem Distinta}(\text{cnpj_fabricante})$
+     * Fornecedores Únicos: $`\text{Contagem Distinta}(\text{cnpj\_fornecedor})`$
+     * Fabricantes Únicos: $`\text{Contagem Distinta}(\text{cnpj\_fabricante})`$
 
 5. **Eficiência de Compras, Modalidades e Recomendações**
    * **Objetivo:** Identificar as modalidades de compra mais utilizadas, comparar compras administrativas vs. judiciais e consolidar recomendações baseadas em dados com suas limitações. Verificar a distribuição do valor gasto por modalidade de compra e tipo ao longo dos anos.
    * **KPIs Principais:**
-     * % Gasto em Pregão / Licitação vs. Dispensa / Compra Direta: $\frac{\text{Soma}(\text{preco_total}_{\text{modalidade}})}{\text{Soma}(\text{preco_total}_{\text{geral}})}$
-     * Compra Administrativa vs. Judicial: $\text{Soma}(\text{preco_total})$ filtrado por `tipo_compra`.
+     * % Gasto em Pregão / Licitação vs. Dispensa / Compra Direta: $`\frac{\text{Soma}(\text{preco\_total}_{\text{modalidade}})}{\text{Soma}(\text{preco\_total}_{\text{geral}})}`$
+     * Compra Administrativa vs. Judicial: $`\text{Soma}(\text{preco\_total})`$ filtrado por `tipo_compra`.
 
 
 ### Diretrizes de Agregação Matemática e Regras Negociais Definidas:
 
 1. **Soma:** Exclusiva para `preco_total` e `qtd_itens_comprados`.
 
-2. **Preço Unitário:** Jamais somar. Utilizar *Médias Ponderadas* ($\sum \text{Preço Total} / \sum \text{Quantidade}$) para visões agregadas ou *Mediana* para identificar desvios/outliers em produtos específicos.
+2. **Preço Unitário:** Jamais somar. Utilizar *Médias Ponderadas* ($`\sum \text{Preço Total} / \sum \text{Quantidade}`$) para visões agregadas ou *Mediana* para identificar desvios/outliers em produtos específicos.
 
 3. **Contagem Distinta:** Para CNPJs (Instituição, Fornecedor, Fabricante), CATMAT (codigo_br), UFs e Municípios.
 
@@ -358,10 +473,10 @@ pip install -r requirements.txt
 ## 🛠️ Tecnologias Utilizadas
 
 * **Linguagem:** Python (Pandas), SQL
-* **Base de Dados:** csv
+* **Base de Dados:** csv / parquet
 * **Ambiente:** VS Code / WSL / venv
 * **Orquestração:** Lógica celular em Jupyter Notebook
-* **Ferramenta de BI:** Google Data Studio
+* **Ferramenta de BI:** Microsoft Power BI
 
 
 <br>
