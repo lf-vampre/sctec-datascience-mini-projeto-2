@@ -58,11 +58,11 @@ Utilizando o banco de dados público do Ministério da Saúde que reúne informa
 
 <br>
 
-- [ ] RF01: Sprint 1: Entendimento do problema e dos dados
+- [x] RF01: Sprint 1: Entendimento do problema e dos dados
 
-- [ ] RF02: Sprint 2: Preparação e concatenação das bases
+- [x] RF02: Sprint 2: Preparação e concatenação das bases
 
-- [ ] RF03: Sprint 3: Definição das métricas e dos KPIs
+- [x] RF03: Sprint 3: Definição das métricas e dos KPIs
 
 - [ ] RF04: Sprint 4: Construção do dashboard
 
@@ -206,34 +206,34 @@ As seguintes ações foram aplicadas:
 1. **Panorama Financeiro e Temporal (Visão Geral Executiva)**
    * **Objetivo:** Evolução dos valores ao longo do tempo, volume de registros e apoio ao planejamento estratégico de gastos.
    * **KPIs Principais:**
-     * Valor Total Registrado (R$): $\text{Soma}(preco\_total)$
-     * Quantidade Total de Itens: $\text{Soma}(qtd\_itens\_comprados)$
-     * Número de Registros de Compra: $\text{Contagem Simples}(id / linhas)$
+     * Valor Total Registrado (R$): $\text{Soma}(\text{preco_total})$
+     * Quantidade Total de Itens: $\text{Soma}(\text{qtd_itens_comprados})$
+     * Número de Registros de Compra: $\text{Contagem Simples}(id ou  linhas)$
 
 2. **Análise Geográfica e de Instituições (Compradores)**
    * **Objetivo:** Identificar os estados, municípios e instituições compradoras de maior relevância e volume financeiro. Top UFs e Municípios com maior volume financeiro de compras. Top 10 Instituições com maior gasto acumulado e respectivo volume de itens comprados.
    * **KPIs Principais:**
-     * Instituições Compradoras Únicas: $\text{Contagem Distinta}(cnpj\_instituicao)$
-     * Total de UFs e Municípios Atendidos: $\text{Contagem Distinta}(uf)$ e $\text{Contagem Distinta}(municipio\_instituicao)$
+     * Instituições Compradoras Únicas: $\text{Contagem Distinta}(\text{cnpj_instituicao})$
+     * Total de UFs e Municípios Atendidos: $\text{Contagem Distinta}(uf)$ e $\text{Contagem Distinta}(\text{municipio_instituicao})$
 
 3. **Produtos, Insumos e Oportunidades de Investigação de Preço**
    * **Objetivo:** Medicamentos e correlatos mais adquiridos, análise da mediana/dispersão de preços e identificação de oportunidades de investigação sobre diferenças relevantes de preços. Top produtos por valor total e por quantidade total.
    * **KPIs Principais:**
-     * Medicamentos / Correlatos Distintos: $\text{Contagem Distinta}(codigo\_br)$
-     * Preço Unitário Médio Ponderado: $\frac{\text{Soma}(preco\_total)}{\text{Soma}(qtd\_itens\_comprados)}$ (Exibido com alerta/contexto de unidade de fornecimento).
-     * Preço Unitário Mediano: $\text{Mediana}(preco\_unitario)$ (Métrica robusta contra outliers para comparação justa).
+     * Medicamentos / Correlatos Distintos: $\text{Contagem Distinta}(\text{codigo_br})$
+     * Preço Unitário Médio Ponderado: $\frac{\text{Soma}(\text{preco_total})}{\text{Soma}(\text{qtd_itens_comprados})}$ (Exibido com alerta/contexto de unidade de fornecimento).
+     * Preço Unitário Mediano: $\text{Mediana}(\text{preco_unitario})$ (Métrica robusta contra outliers para comparação justa).
 
 4. **Fornecedores e Fabricantes (Mercado e Concorrência)**
    * **Objetivo:** Avaliar a participação de mercado, concentração de fornecedores/fabricantes e apoiar a negociação pública.
    * **KPIs Principais:**
-     * Fornecedores Únicos: $\text{Contagem Distinta}(cnpj\_fornecedor)$
-     * Fabricantes Únicos: $\text{Contagem Distinta}(cnpj\_fabricante)$
+     * Fornecedores Únicos: $\text{Contagem Distinta}(\text{cnpj_fornecedor})$
+     * Fabricantes Únicos: $\text{Contagem Distinta}(\text{cnpj_fabricante})$
 
 5. **Eficiência de Compras, Modalidades e Recomendações**
    * **Objetivo:** Identificar as modalidades de compra mais utilizadas, comparar compras administrativas vs. judiciais e consolidar recomendações baseadas em dados com suas limitações. Verificar a distribuição do valor gasto por modalidade de compra e tipo ao longo dos anos.
    * **KPIs Principais:**
-     * % Gasto em Pregão / Licitação vs. Dispensa / Compra Direta: $\frac{\text{Soma}(preco\_total_{\text{modalidade}})}{\text{Soma}(preco\_total_{\text{geral}})}$
-     * Compra Administrativa vs. Judicial: $\text{Soma}(preco\_total)$ filtrado por `tipo_compra`.
+     * % Gasto em Pregão / Licitação vs. Dispensa / Compra Direta: $\frac{\text{Soma}(\text{preco_total}_{\text{modalidade}})}{\text{Soma}(\text{preco_total}_{\text{geral}})}$
+     * Compra Administrativa vs. Judicial: $\text{Soma}(\text{preco_total})$ filtrado por `tipo_compra`.
 
 
 ### Diretrizes de Agregação Matemática e Regras Negociais Definidas:
